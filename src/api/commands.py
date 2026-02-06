@@ -1,27 +1,28 @@
 
 import click
-from api.models import db, User
+from api.models import db, User, ProfileInfo, Article, Order, OrderItem, Tag
 
 """
 In this file, you can add as many commands as you want using the @app.cli.command decorator
-Flask commands are usefull to run cronjobs or tasks outside of the API but sill in integration 
-with youy database, for example: Import the price of bitcoin every night as 12am
+Flask commands are useful to run cronjobs or tasks outside of the API but still in integration
+with your database, for example: Import the price of bitcoin every night at 12am
 """
 def setup_commands(app):
-    
-    """ 
+
+    """
     This is an example command "insert-test-users" that you can run from the command line
     by typing: $ flask insert-test-users 5
     Note: 5 is the number of users to add
     """
     @app.cli.command("insert-test-users") # name of our command
-    @click.argument("count") # argument of out command
+    @click.argument("count") # argument of our command
     def insert_test_users(count):
         print("Creating test users")
         for x in range(1, int(count) + 1):
             user = User()
             user.email = "test_user" + str(x) + "@test.com"
-            user.password = "123456"
+            user.username = "test_user" + str(x)
+            user.set_password("123456")
             user.is_active = True
             db.session.add(user)
             db.session.commit()
@@ -31,4 +32,187 @@ def setup_commands(app):
 
     @app.cli.command("insert-test-data")
     def insert_test_data():
-        pass
+        """Poblar la base de datos con datos de ejemplo."""
+        print("Limpiando base de datos...")
+        OrderItem.query.delete()
+        Order.query.delete()
+        ProfileInfo.query.delete()
+        db.session.execute(db.text("DELETE FROM article_tags"))
+        Article.query.delete()
+        Tag.query.delete()
+        User.query.delete()
+        db.session.commit()
+
+        # =====================================================================
+        #                              TAGS
+        # =====================================================================
+        print("Creando tags...")
+        tags = [
+            Tag(name="Electronica", color="#e74c3c"),
+            Tag(name="Ropa", color="#3498db"),
+            Tag(name="Hogar", color="#2ecc71"),
+            Tag(name="Deportes", color="#f39c12"),
+            Tag(name="Oferta", color="#9b59b6"),
+        ]
+        db.session.add_all(tags)
+        db.session.commit()
+
+        # =====================================================================
+        #                           USUARIOS + PERFILES
+        # =====================================================================
+        print("Creando usuarios con perfiles...")
+
+        user1 = User(email="ana@example.com", username="ana")
+        user1.set_password("123456")
+        user1.profile = ProfileInfo(
+            first_name="Ana", last_name="Martinez",
+            phone="+34 611111111", address="Calle Gran Via 1, Madrid",
+            bio="Amante de la tecnologia"
+        )
+
+        user2 = User(email="pedro@example.com", username="pedro")
+        user2.set_password("123456")
+        user2.profile = ProfileInfo(
+            first_name="Pedro", last_name="Lopez",
+            phone="+34 622222222", address="Av. Diagonal 100, Barcelona",
+            bio="Deportista y gamer"
+        )
+
+        user3 = User(email="lucia@example.com", username="lucia")
+        user3.set_password("123456")
+        user3.profile = ProfileInfo(
+            first_name="Lucia", last_name="Garcia",
+            phone="+34 633333333", address="Calle Sierpes 25, Sevilla",
+            bio="Disenadora de interiores"
+        )
+
+        db.session.add_all([user1, user2, user3])
+        db.session.commit()
+
+        # =====================================================================
+        #                           ARTICULOS
+        # =====================================================================
+        print("Creando articulos...")
+
+        articles = [
+            Article(
+                name="Laptop Pro 15",
+                description="Portatil de alto rendimiento con 16GB RAM y 512GB SSD",
+                price=1299.99, stock=15, is_available=True
+            ),
+            Article(
+                name="Auriculares Bluetooth",
+                description="Auriculares inalambricos con cancelacion de ruido",
+                price=79.99, stock=50, is_available=True
+            ),
+            Article(
+                name="Camiseta Running",
+                description="Camiseta tecnica transpirable para correr",
+                price=29.99, stock=100, is_available=True
+            ),
+            Article(
+                name="Zapatillas Trail",
+                description="Zapatillas para correr por montana",
+                price=119.99, stock=30, is_available=True
+            ),
+            Article(
+                name="Lampara LED Escritorio",
+                description="Lampara de escritorio con 3 niveles de brillo",
+                price=34.99, stock=40, is_available=True
+            ),
+            Article(
+                name="Teclado Mecanico RGB",
+                description="Teclado mecanico con switches Cherry MX e iluminacion RGB",
+                price=89.99, stock=25, is_available=True
+            ),
+            Article(
+                name="Sudadera Oversize",
+                description="Sudadera comoda de algodon organico",
+                price=44.99, stock=60, is_available=True
+            ),
+            Article(
+                name="Balon de Futbol",
+                description="Balon oficial tamano 5",
+                price=24.99, stock=0, is_available=False
+            ),
+        ]
+        db.session.add_all(articles)
+        db.session.commit()
+
+        # Asignar tags a articulos
+        print("Asignando tags a articulos...")
+        articles[0].tags.extend([tags[0], tags[4]])           # Laptop: Electronica, Oferta
+        articles[1].tags.append(tags[0])                       # Auriculares: Electronica
+        articles[2].tags.extend([tags[1], tags[3]])            # Camiseta: Ropa, Deportes
+        articles[3].tags.extend([tags[3], tags[4]])            # Zapatillas: Deportes, Oferta
+        articles[4].tags.extend([tags[0], tags[2]])            # Lampara: Electronica, Hogar
+        articles[5].tags.extend([tags[0], tags[4]])            # Teclado: Electronica, Oferta
+        articles[6].tags.append(tags[1])                       # Sudadera: Ropa
+        articles[7].tags.append(tags[3])                       # Balon: Deportes
+        db.session.commit()
+
+        # =====================================================================
+        #                           ORDENES
+        # =====================================================================
+        print("Creando ordenes...")
+
+        # Orden 1: Ana compra laptop + auriculares
+        order1 = Order(user_id=user1.id, shipping_address="Calle Gran Via 1, Madrid")
+        item1 = OrderItem(article_id=articles[0].id, quantity=1, unit_price=articles[0].price)
+        item1.calculate_subtotal()
+        item2 = OrderItem(article_id=articles[1].id, quantity=2, unit_price=articles[1].price)
+        item2.calculate_subtotal()
+        order1.items.extend([item1, item2])
+        db.session.add(order1)
+        db.session.flush()
+        order1.calculate_total()
+        order1.status = "paid"
+
+        # Orden 2: Pedro compra zapatillas + camiseta
+        order2 = Order(user_id=user2.id, shipping_address="Av. Diagonal 100, Barcelona")
+        item3 = OrderItem(article_id=articles[3].id, quantity=1, unit_price=articles[3].price)
+        item3.calculate_subtotal()
+        item4 = OrderItem(article_id=articles[2].id, quantity=3, unit_price=articles[2].price)
+        item4.calculate_subtotal()
+        order2.items.extend([item3, item4])
+        db.session.add(order2)
+        db.session.flush()
+        order2.calculate_total()
+        order2.status = "shipped"
+
+        # Orden 3: Lucia compra lampara + teclado + sudadera
+        order3 = Order(user_id=user3.id, shipping_address="Calle Sierpes 25, Sevilla")
+        item5 = OrderItem(article_id=articles[4].id, quantity=2, unit_price=articles[4].price)
+        item5.calculate_subtotal()
+        item6 = OrderItem(article_id=articles[5].id, quantity=1, unit_price=articles[5].price)
+        item6.calculate_subtotal()
+        item7 = OrderItem(article_id=articles[6].id, quantity=1, unit_price=articles[6].price)
+        item7.calculate_subtotal()
+        order3.items.extend([item5, item6, item7])
+        db.session.add(order3)
+        db.session.flush()
+        order3.calculate_total()
+        order3.status = "delivered"
+
+        # Orden 4: Ana hace otra compra (pendiente)
+        order4 = Order(user_id=user1.id, shipping_address="Calle Gran Via 1, Madrid")
+        item8 = OrderItem(article_id=articles[5].id, quantity=1, unit_price=articles[5].price)
+        item8.calculate_subtotal()
+        order4.items.append(item8)
+        db.session.add(order4)
+        db.session.flush()
+        order4.calculate_total()
+
+        db.session.commit()
+
+        # =====================================================================
+        #                           RESUMEN
+        # =====================================================================
+        print("\n=== Base de datos poblada ===")
+        print(f"  Tags:      {Tag.query.count()}")
+        print(f"  Usuarios:  {User.query.count()}")
+        print(f"  Perfiles:  {ProfileInfo.query.count()}")
+        print(f"  Articulos: {Article.query.count()}")
+        print(f"  Ordenes:   {Order.query.count()}")
+        print(f"  Items:     {OrderItem.query.count()}")
+        print("=============================\n")

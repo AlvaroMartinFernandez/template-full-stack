@@ -2,16 +2,16 @@
 This module takes care of starting the API Server, Loading the DB and Adding the endpoints
 """
 import os
+from datetime import timedelta
 from flask import Flask, request, jsonify, url_for, send_from_directory
 from flask_migrate import Migrate
 from flask_swagger import swagger
+from flask_jwt_extended import JWTManager
 from api.utils import APIException, generate_sitemap
 from api.models import db
 from api.routes import api
 from api.admin import setup_admin
 from api.commands import setup_commands
-
-# from models import Person
 
 ENV = "development" if os.getenv("FLASK_DEBUG") == "1" else "production"
 static_file_dir = os.path.join(os.path.dirname(
@@ -19,11 +19,26 @@ static_file_dir = os.path.join(os.path.dirname(
 app = Flask(__name__)
 app.url_map.strict_slashes = False
 
-# database condiguration
+# =============================================================================
+#                    DATABASE CONFIGURATION
+# =============================================================================
+# Soporte dual: MSSQL (local Windows) + PostgreSQL (Codespaces/produccion)
+#
+# Para MSSQL local usa DATABASE_URL con formato:
+#   mssql+pyodbc://usuario:password@servidor/basedatos?driver=ODBC+Driver+17+for+SQL+Server
+#
+# Para PostgreSQL (Codespaces) usa:
+#   postgres://usuario:password@host:puerto/basedatos
+#
+# Si no hay DATABASE_URL, usa SQLite como fallback
+# =============================================================================
 db_url = os.getenv("DATABASE_URL")
+
 if db_url is not None:
-    app.config['SQLALCHEMY_DATABASE_URI'] = db_url.replace(
-        "postgres://", "postgresql://")
+    # PostgreSQL: corregir prefijo legacy de Heroku/Render
+    if db_url.startswith("postgres://"):
+        db_url = db_url.replace("postgres://", "postgresql://", 1)
+    app.config['SQLALCHEMY_DATABASE_URI'] = db_url
 else:
     app.config['SQLALCHEMY_DATABASE_URI'] = "sqlite:////tmp/test.db"
 
@@ -31,13 +46,36 @@ app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 MIGRATE = Migrate(app, db, compare_type=True)
 db.init_app(app)
 
+# =============================================================================
+#                    JWT CONFIGURATION
+# =============================================================================
+app.config["JWT_SECRET_KEY"] = os.environ.get("JWT_SECRET_KEY", "super-secret-key-change-in-production")
+app.config["JWT_ACCESS_TOKEN_EXPIRES"] = timedelta(hours=1)
+jwt = JWTManager(app)
+
+
+@jwt.expired_token_loader
+def expired_token_callback(jwt_header, jwt_payload):
+    return jsonify({"message": "Token ha expirado"}), 401
+
+
+@jwt.invalid_token_loader
+def invalid_token_callback(error):
+    return jsonify({"message": "Token invalido"}), 401
+
+
+@jwt.unauthorized_loader
+def missing_token_callback(error):
+    return jsonify({"message": "Token requerido"}), 401
+
+
 # add the admin
 setup_admin(app)
 
-# add the admin
+# add commands (seed, etc.)
 setup_commands(app)
 
-# Add all endpoints form the API with a "api" prefix
+# Add all endpoints from the API with an "api" prefix
 app.register_blueprint(api, url_prefix='/api')
 
 # Handle/serialize errors like a JSON object
@@ -68,5 +106,5 @@ def serve_any_other_file(path):
 
 # this only runs if `$ python src/main.py` is executed
 if __name__ == '__main__':
-    PORT = int(os.environ.get('PORT', 3001))
+    PORT = int(os.environ.get('PORT', 30051))
     app.run(host='0.0.0.0', port=PORT, debug=True)
