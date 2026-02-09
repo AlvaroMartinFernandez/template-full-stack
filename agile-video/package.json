@@ -1,0 +1,26 @@
+{
+  "name": "agile-video",
+  "version": "1.0.0",
+  "description": "Video educativo sobre Metodologias Agiles, Scrum y GitHub Projects usando Remotion",
+  "scripts": {
+    "dev": "remotion preview src/index.ts",
+    "build": "remotion render src/index.ts Video out/video.mp4",
+    "upgrade": "remotion upgrade"
+  },
+  "dependencies": {
+    "@remotion/cli": "^4.0.87",
+    "@remotion/media": "^4.0.87",
+    "@remotion/player": "^4.0.87",
+    "prism-react-renderer": "^2.3.1",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "remotion": "^4.0.87"
+  },
+  "devDependencies": {
+    "@types/node": "^20.10.0",
+    "@types/react": "^18.2.45",
+    "@types/react-dom": "^18.2.18",
+    "prettier": "^3.1.1",
+    "typescript": "^5.3.3"
+  }
+}
